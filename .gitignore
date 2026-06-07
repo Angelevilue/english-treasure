@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+*.egg
+
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+*.iml
+.idea/
+.gradle/
+local.properties
+
+# Environment
+.env
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+pgdata/
+minio_data/
+
+# Reasonix
+.reasonix/
+
+# Scripts
+setup_flutter.sh
+run_flutter.sh
