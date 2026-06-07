@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/providers.dart';
 import 'vocab_providers.dart';
+import 'quiz_screen.dart';
 
 class VocabScreen extends ConsumerWidget {
   const VocabScreen({super.key});
@@ -58,6 +60,15 @@ class VocabScreen extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('词库', style: Theme.of(context).textTheme.titleMedium),
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const QuizScreen()),
+                    );
+                  },
+                  icon: const Icon(Icons.quiz, size: 18),
+                  label: const Text('选择模式'),
+                ),
               ],
             ),
           ),
@@ -112,30 +123,64 @@ class VocabScreen extends ConsumerWidget {
 
 // ── 闪卡学习页 ──
 
-class _FlashcardPage extends StatefulWidget {
+class _FlashcardPage extends ConsumerStatefulWidget {
   final List<FlashcardItem> cards;
   const _FlashcardPage({required this.cards});
 
   @override
-  State<_FlashcardPage> createState() => _FlashcardPageState();
+  ConsumerState<_FlashcardPage> createState() => _FlashcardPageState();
 }
 
-class _FlashcardPageState extends State<_FlashcardPage> {
+class _FlashcardPageState extends ConsumerState<_FlashcardPage> {
   int _index = 0;
   bool _showBack = false;
+  int _reviewedCount = 0;
+
+  Future<void> _review(int quality) async {
+    final card = widget.cards[_index];
+    try {
+      final api = ref.read(apiClientProvider);
+      await api.dio.post('/api/vocab/flashcards/review', data: {
+        'word_id': card.wordId,
+        'quality': quality,
+      });
+    } catch (_) {
+      // 静默失败，不打断学习
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _index++;
+      _showBack = false;
+      _reviewedCount++;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     if (_index >= widget.cards.length) {
       return Scaffold(
         appBar: AppBar(title: const Text('完成！')),
-        body: const Center(child: Text('🎉 今日任务完成！', style: TextStyle(fontSize: 24))),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('🎉', style: TextStyle(fontSize: 64)),
+              const SizedBox(height: 16),
+              const Text('今日任务完成！', style: TextStyle(fontSize: 24)),
+              const SizedBox(height: 8),
+              Text('复习了 $_reviewedCount 个单词', style: const TextStyle(color: Colors.grey)),
+              const SizedBox(height: 32),
+              FilledButton(onPressed: () => Navigator.pop(context), child: const Text('返回')),
+            ],
+          ),
+        ),
       );
     }
 
     final card = widget.cards[_index];
     return Scaffold(
-      appBar: AppBar(title: Text('${_index + 1} / ${widget.cards.length}')),
+      appBar: AppBar(title: Text('闪卡 ${_index + 1}/${widget.cards.length}')),
       body: GestureDetector(
         onTap: () => setState(() => _showBack = !_showBack),
         child: Center(
@@ -151,16 +196,26 @@ class _FlashcardPageState extends State<_FlashcardPage> {
           child: Row(
             children: [
               Expanded(
-                child: OutlinedButton(
-                  onPressed: () => setState(() { _index++; _showBack = false; }),
-                  child: const Text('不认识'),
+                child: OutlinedButton.icon(
+                  onPressed: () => _review(0),
+                  icon: const Icon(Icons.close, color: Colors.red),
+                  label: const Text('不认识'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: const BorderSide(color: Colors.red),
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(
-                child: FilledButton(
-                  onPressed: () => setState(() { _index++; _showBack = false; }),
-                  child: const Text('认识'),
+                child: FilledButton.icon(
+                  onPressed: () => _review(4),
+                  icon: const Icon(Icons.check, color: Colors.white),
+                  label: const Text('认识'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    backgroundColor: Colors.green,
+                  ),
                 ),
               ),
             ],

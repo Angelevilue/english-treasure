@@ -11,12 +11,14 @@ final apiClientProvider = Provider<ApiClient>((ref) {
 
 // ── Auth State ──
 class AuthState {
+  final bool isLoading;
   final bool isLoggedIn;
   final String? token;
   final String? nickname;
   final String? studyStage;
 
   const AuthState({
+    this.isLoading = true,
     this.isLoggedIn = false,
     this.token,
     this.nickname,
@@ -24,12 +26,14 @@ class AuthState {
   });
 
   AuthState copyWith({
+    bool? isLoading,
     bool? isLoggedIn,
     String? token,
     String? nickname,
     String? studyStage,
   }) {
     return AuthState(
+      isLoading: isLoading ?? this.isLoading,
       isLoggedIn: isLoggedIn ?? this.isLoggedIn,
       token: token ?? this.token,
       nickname: nickname ?? this.nickname,
@@ -51,7 +55,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       });
       final token = resp.data['access_token'] as String;
       await _api.saveToken(token);
-      state = state.copyWith(isLoggedIn: true, token: token);
+      state = state.copyWith(isLoading: false, isLoggedIn: true, token: token);
       return true;
     } catch (e) {
       return false;
@@ -67,7 +71,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       });
       final token = resp.data['access_token'] as String;
       await _api.saveToken(token);
-      state = state.copyWith(isLoggedIn: true, token: token);
+      state = state.copyWith(isLoading: false, isLoggedIn: true, token: token);
       return true;
     } catch (e) {
       return false;
@@ -76,13 +80,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> logout() async {
     await _api.clearToken();
-    state = const AuthState();
+    state = const AuthState(isLoading: false, isLoggedIn: false);
   }
 
   Future<void> checkAuth() async {
     final token = await _api.getToken();
     if (token != null) {
-      state = state.copyWith(isLoggedIn: true, token: token);
+      state = state.copyWith(isLoading: false, isLoggedIn: true, token: token);
+    } else {
+      state = state.copyWith(isLoading: false, isLoggedIn: false);
     }
   }
 }

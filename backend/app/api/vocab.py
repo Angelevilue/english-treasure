@@ -19,6 +19,11 @@ from app.schemas.vocab import (
     FlashcardItem,
     FlashcardResponse,
     FlashcardReviewRequest,
+    QuizAnswer,
+    QuizQuestion,
+    QuizResponse,
+    QuizResultResponse,
+    QuizSubmitRequest,
     WordBankItem,
     WordBankListResponse,
     WordItem,
@@ -256,3 +261,132 @@ async def review_flashcard(
         "status": progress.status.value,
         "next_review_at": progress.next_review_at.isoformat() if progress.next_review_at else None,
     }
+
+
+# ── 选择模式 Quiz ──
+
+import random
+
+
+@router.get("/quiz", response_model=QuizResponse)
+async def generate_quiz(
+    bank_id: str | None = Query(None, description="词库 ID，不传则跨词库随机"),
+    mode: str = Query("en2cn", pattern="^(en2cn|cn2en)$"),
+    count: int = Query(10, ge=4, le=20),
+    user: User = Depends(get_current_user_dep),
+    db: AsyncSession = Depends(get_db),
+):
+    """生成一组选择题。mode: en2cn=英选中, cn2en=中选英"""
+    # 获取候选单词
+    word_stmt = select(Word)
+    if bank_id:
+        word_stmt = word_stmt.where(Word.word_bank_id == bank_id)
+    result = await db.execute(word_stmt)
+    all_words = result.scalars().all()
+
+    if len(all_words) < 4:
+        raise HTTPException(status_code=400, detail="词库单词不足 4 个，无法出题")
+
+    # 随机选 count 个作为题目
+    quiz_words = random.sample(all_words, min(count, len(all_words)))
+
+    questions = []
+    for w in quiz_words:
+        # 选 3 个干扰项（排除当前词）
+        others = [ow for ow in all_words if ow.id != w.id]
+        distractors = random.sample(others, min(3, len(others)))
+
+        if mode == "en2cn":
+            question_text = w.word
+            correct = w.definition
+            options = [correct] + [d.definition for d in distractors]
+        else:
+            question_text = w.definition
+            correct = w.word
+            options = [correct] + [d.word for d in distractors]
+
+        random.shuffle(options)
+        correct_index = options.index(correct)
+
+        questions.append(QuizQuestion(
+            word_id=w.id,
+            question=question_text,
+            options=options,
+            correct_index=correct_index,
+            correct_answer=correct,
+        ))
+
+    return QuizResponse(questions=questions, mode=mode, total=len(questions))
+
+
+@router.post("/quiz/submit", response_model=QuizResultResponse)
+async def submit_quiz(
+    body: QuizSubmitRequest,
+    user: User = Depends(get_current_user_dep),
+    db: AsyncSession = Depends(get_db),
+):
+    """提交选择题作答结果，更新 SM-2 进度"""
+    total = len(body.answers)
+    if total == 0:
+        raise HTTPException(status_code=400, detail="作答列表为空")
+
+    correct_count = 0
+    wrong_words: list[str] = []
+
+    for answer in body.answers:
+        # 查找进度
+        stmt = select(UserWordProgress).where(
+            UserWordProgress.user_id == user.id,
+            UserWordProgress.word_id == answer.word_id,
+        )
+        result = await db.execute(stmt)
+        progress = result.scalar_one_or_none()
+
+        if not progress:
+            progress = UserWordProgress(
+                user_id=user.id,
+                word_id=answer.word_id,
+                status=WordStatus.NEW,
+            )
+            db.add(progress)
+            await db.flush()
+
+        quality = 5 if answer.correct else 1
+        new_ef, new_interval, new_reps = sm2_step(
+            ease_factor=progress.ease_factor,
+            interval=progress.interval,
+            repetitions=progress.repetitions,
+            quality=quality,
+        )
+
+        progress.ease_factor = new_ef
+        progress.interval = new_interval
+        progress.repetitions = new_reps
+        progress.next_review_at = next_review_datetime(new_interval)
+        progress.last_review_at = next_review_datetime(0)
+
+        if answer.correct:
+            correct_count += 1
+            progress.correct_count += 1
+        else:
+            progress.incorrect_count += 1
+            # 记录错词
+            word = await db.get(Word, answer.word_id)
+            if word:
+                wrong_words.append(word.word)
+
+        if progress.status == WordStatus.NEW:
+            progress.status = WordStatus.LEARNING
+        else:
+            progress.status = WordStatus.REVIEW
+
+    await db.flush()
+
+    accuracy = correct_count / total if total > 0 else 0
+    return QuizResultResponse(
+        total=total,
+        correct=correct_count,
+        incorrect=total - correct_count,
+        accuracy=round(accuracy * 100, 1),
+        wrong_words=wrong_words,
+    )

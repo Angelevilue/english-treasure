@@ -20,13 +20,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: '/vocab',
     redirect: (context, state) {
       final isLoggedIn = auth.isLoggedIn;
+      final isLoading = auth.isLoading;
       final isAuthRoute = state.uri.path == '/login';
+      final isSplash = state.uri.path == '/splash';
+
+      // 还在检查 token → 显示启动页
+      if (isLoading && !isSplash) return '/splash';
+      if (!isLoading && isSplash) return isLoggedIn ? '/vocab' : '/login';
 
       if (!isLoggedIn && !isAuthRoute) return '/login';
       if (isLoggedIn && isAuthRoute) return '/vocab';
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/splash',
+        builder: (_, __) => const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
+      ),
       GoRoute(
         path: '/login',
         builder: (_, __) => const AuthScreen(),

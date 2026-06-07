@@ -37,11 +37,13 @@ def create_app() -> FastAPI:
     from app.api.vocab import router as vocab_router
     from app.api.grammar import router as grammar_router
     from app.api.speak import router as speak_router
+    from app.api.stats import router as stats_router
 
     app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
     app.include_router(vocab_router, prefix="/api/vocab", tags=["vocab"])
     app.include_router(grammar_router, prefix="/api/grammar", tags=["grammar"])
     app.include_router(speak_router, prefix="/api/speak", tags=["speak"])
+    app.include_router(stats_router, prefix="/api/stats", tags=["stats"])
 
     @app.get("/api/health")
     async def health():
