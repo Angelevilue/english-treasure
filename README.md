@@ -1,15 +1,16 @@
 # English Treasure (英语宝典)
 
-> An all-in-one English learning app covering word memorization, grammar analysis, and speaking practice for learners from elementary school to postgraduate entrance exams.
+> An all-in-one English learning app covering word memorization, grammar analysis, and speaking practice — from elementary school to postgraduate exams.
 
 ## ✨ Features
 
 | Module | Function | Status |
 |---|---|---|
-| **Vocabulary** | SM-2 spaced repetition, flashcard flip learning, 5 word banks (Elementary→IELTS) | ✅ Working |
+| **Vocabulary** | SM-2 spaced repetition, flashcard flip + quiz (4-choice), 5 word banks, force-new batch | ✅ Working |
 | **Grammar** | DeepSeek + LangChain AI analysis with structured output (SVO/clauses/tense) | ✅ Working |
-| **Speaking** | KTV-style shadowing with manual navigation, iFlytek multi-dimension scoring | ✅ UI Ready · 🟡 iFlytek auth pending |
-| **Auth** | Phone registration/login, JWT, study stage switching (Elementary→Overseas) | ✅ Working |
+| **Speaking** | KTV-style shadowing with manual navigation, iFlytek multi-dimension scoring | ✅ UI Ready · 🟡 iFlytek auth |
+| **Profile** | Learning stats (total vocab, mastered, streak, accuracy), stage switching | ✅ Working |
+| **Auth** | Phone registration/login, JWT persistence across page refresh | ✅ Working |
 
 ## 🛠 Tech Stack
 
@@ -18,14 +19,12 @@
 | Frontend | Flutter 3.44 (Dart) · Riverpod · GoRouter |
 | Backend | Python FastAPI (async) |
 | LLM Orchestration | LangChain ≥1.0 + LangGraph ≥1.0 |
-| LLM | DeepSeek v4 Flash (thinking mode disabled) |
+| LLM | DeepSeek v4 Flash (thinking mode disabled via `extra_body`) |
 | Speech Evaluation | iFlytek ISE API (WebSocket) |
 | Database | PostgreSQL 16 (port 5433) + Redis 7 (port 6380) |
-| Local Storage | SQLite (sqflite) |
 | ORM | SQLAlchemy 2.0 (async) |
 | Object Storage | MinIO (port 9002) |
-| Deployment | Docker + Nginx |
-| Testing | pytest (6/6 auth tests passing) |
+| Testing | pytest (6/6 passing) |
 
 ## 📁 Project Structure
 
@@ -33,44 +32,42 @@
 english-treasure/
 ├── backend/                        # FastAPI Backend
 │   ├── app/
-│   │   ├── api/                    # REST API routes (14 endpoints)
-│   │   │   ├── auth.py             # Register/login/stage switch (6 endpoints)
-│   │   │   ├── vocab.py            # Word banks, flashcards, SM-2 (4 endpoints)
-│   │   │   ├── grammar.py          # Knowledge tree, AI analysis (3 endpoints)
-│   │   │   └── speak.py            # Materials, pronunciation eval (3 endpoints)
-│   │   ├── chains/
-│   │   │   └── grammar_chain.py    # DeepSeek grammar analysis chain
+│   │   ├── api/                    # REST API routes (17 endpoints)
+│   │   │   ├── auth.py             # Register/login/stage switch (6)
+│   │   │   ├── vocab.py            # Word banks, flashcards, SM-2, quiz (7)
+│   │   │   ├── grammar.py          # Knowledge tree, AI analysis (3)
+│   │   │   ├── speak.py            # Materials, pronunciation eval (3)
+│   │   │   └── stats.py            # Learning statistics overview (1)
+│   │   ├── chains/grammar_chain.py # DeepSeek grammar chain
 │   │   ├── models/                 # 7 SQLAlchemy models
-│   │   ├── schemas/                # Pydantic request/response schemas
+│   │   ├── schemas/                # Pydantic request/response
 │   │   ├── services/
-│   │   │   ├── sm2.py              # SM-2 spaced repetition algorithm
+│   │   │   ├── sm2.py              # SM-2 spaced repetition
 │   │   │   └── iflytek.py          # iFlytek WebSocket evaluation
 │   │   └── core/                   # config / database / security
-│   ├── alembic/                    # DB migrations (1 revision)
-│   ├── tests/                      # pytest (6 tests passing)
-│   ├── seed_data.py                # Seed data (50 words + 20 grammar + 13 sentences)
-│   ├── .env / .env.example         # Environment variables
+│   ├── alembic/                    # DB migrations
+│   ├── tests/                      # pytest (6 tests)
+│   ├── seed_data.py                # 50 words + 20 grammar + 13 sentences
 │   ├── requirements.txt            # Pinned dependencies
 │   └── pyproject.toml
 │
 ├── frontend/                       # Flutter App
 │   └── lib/
-│       ├── main.dart               # App entry point
+│       ├── main.dart               # Entry + checkAuth on startup
 │       ├── core/                   # router / providers / api_client / theme
 │       └── features/
 │           ├── auth/               # Login / Register
-│           ├── vocab/              # Word banks + flashcard flip learning
-│           ├── grammar/            # Knowledge tree + DeepSeek AI dialog
-│           ├── speak/              # Materials + per-sentence practice + score card
-│           └── profile/            # Stage switch + logout
+│           ├── vocab/              # Flashcards + quiz mode
+│           ├── grammar/            # Knowledge tree + AI dialog
+│           ├── speak/              # Materials + per-sentence practice
+│           └── profile/            # Real-time stats + stage switch
 │
 ├── docs/
-│   ├── 英语宝典_PRD_终稿.md        # PRD (Chinese)
-│   └── 技术选型.md                 # Tech decisions (Chinese)
+│   ├── 英语宝典_PRD_终稿.md
+│   └── 技术选型.md
 │
 ├── docker-compose.yml              # PostgreSQL + Redis + MinIO
-├── README.md                       # This file
-├── README_zh.md                    # Chinese version
+├── README.md / README_zh.md
 └── .gitignore
 ```
 
@@ -78,9 +75,7 @@ english-treasure/
 
 ### Prerequisites
 
-- Python ≥3.11
-- Flutter SDK ≥3.2
-- Docker & Docker Compose
+- Python ≥3.11 · Flutter SDK ≥3.2 · Docker
 - [DeepSeek API Key](https://platform.deepseek.com/)
 - [iFlytek API Key](https://www.xfyun.cn/) (enable "Speech Evaluation" English service)
 
@@ -91,19 +86,14 @@ docker compose up -d
 # PostgreSQL :5433 | Redis :6380 | MinIO :9002
 ```
 
-### 2. Configure Environment
+### 2. Configure
 
 ```bash
 cp backend/.env.example backend/.env
-# Edit backend/.env:
-#   DEEPSEEK_API_KEY=sk-xxx
-#   DEEPSEEK_MODEL=deepseek-v4-flash
-#   IFLYTEK_APP_ID=xxx
-#   IFLYTEK_API_KEY=xxx
-#   IFLYTEK_API_SECRET=xxx
+# Fill in DEEPSEEK_API_KEY, IFLYTEK_*, etc.
 ```
 
-### 3. Install Dependencies + Migrate + Seed
+### 3. Install + Migrate + Seed
 
 ```bash
 cd backend
@@ -127,10 +117,7 @@ cd frontend
 flutter create --project-name english_treasure .
 flutter pub get
 flutter run -d chrome
-# or: flutter run -d macos
 ```
-
-> **API Base URL**: Frontend defaults to `http://localhost:8080`. Edit `frontend/lib/core/providers.dart:7` if needed.
 
 ## 📡 API Endpoints
 
@@ -141,43 +128,32 @@ flutter run -d chrome
 | `GET` | `/api/auth/me` | ✅ | Current user profile |
 | `PUT` | `/api/auth/me/stage` | ✅ | Switch study stage |
 | `GET` | `/api/vocab/banks` | — | List word banks |
-| `GET` | `/api/vocab/flashcards` | ✅ | Today's flashcard tasks |
-| `POST` | `/api/vocab/flashcards/review` | ✅ | Submit review score |
+| `GET` | `/api/vocab/flashcards` | ✅ | Today's flashcard tasks (+ `?force_new=true`) |
+| `POST` | `/api/vocab/flashcards/review` | ✅ | Submit SM-2 review |
+| `GET` | `/api/vocab/quiz` | ✅ | Generate quiz questions (en2cn/cn2en) |
+| `POST` | `/api/vocab/quiz/submit` | ✅ | Submit quiz answers |
 | `GET` | `/api/grammar/topics` | — | Grammar knowledge tree |
 | `POST` | `/api/grammar/analyze` | ✅ | AI grammar analysis |
 | `GET` | `/api/speak/materials` | — | List speaking materials |
 | `GET` | `/api/speak/materials/{id}` | — | Material with sentences |
 | `POST` | `/api/speak/evaluate` | ✅ | Submit audio for evaluation |
+| `GET` | `/api/stats/overview` | ✅ | Learning statistics |
 
 ## 🧪 Testing
 
 ```bash
 cd backend
 python -m pytest tests/ -v
-# 6 passed — register/login/duplicate/wrong-password/stage-switch/unauthorized
+# 6 passed
 ```
 
-## 🔧 Known Issues & Roadmap
+## 🔧 Known Issues
 
-| Issue | Status | Plan |
-|---|---|---|
-| iFlytek returns 401 | 🟡 Pending | Verify APPID and service enabled in console |
-| Real browser audio recording | 🟡 Pending | Test WAV placeholder works; need MediaRecorder or native app |
-| Plugin SPM warnings | 🟢 Non-blocking | `record`/`flutter_tts` SPM compatibility — next Flutter version |
-| Thinking mode | ✅ Fixed | `ChatDeepSeek(extra_body={"thinking": {"type": "disabled"}})` |
-
-## 📝 Environment Variables
-
-| Variable | Required | Description |
-|---|---|---|
-| `DEEPSEEK_API_KEY` | Yes | DeepSeek API key |
-| `DEEPSEEK_MODEL` | Yes | `deepseek-v4-flash` |
-| `IFLYTEK_APP_ID` | Yes | iFlytek application ID |
-| `IFLYTEK_API_KEY` | Yes | iFlytek API key |
-| `IFLYTEK_API_SECRET` | Yes | iFlytek API secret |
-| `DATABASE_URL` | Yes | PostgreSQL connection (port 5433) |
-| `REDIS_URL` | Yes | Redis connection (port 6380) |
-| `SECRET_KEY` | Yes | JWT signing secret (≥32 chars) |
+| Issue | Status |
+|---|---|
+| iFlytek returns 401 | 🟡 Verify APPID & service in console |
+| Real browser audio recording | 🟡 WAV placeholder; need MediaRecorder |
+| Plugin SPM warnings | 🟢 Non-blocking |
 
 ## 📄 License
 

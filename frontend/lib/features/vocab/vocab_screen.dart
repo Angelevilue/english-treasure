@@ -27,23 +27,37 @@ class VocabScreen extends ConsumerWidget {
                     children: [
                       const Text('今日任务', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _StatBadge(label: '新学', value: '${cards.where((c) => c.status == 'new').length}', color: Colors.blue),
-                          _StatBadge(label: '复习', value: '${cards.where((c) => c.status != 'new').length}', color: Colors.orange),
-                          _StatBadge(label: '总计', value: '${cards.length}', color: Colors.green),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: () => _startFlashcard(context, cards),
-                          icon: const Icon(Icons.play_arrow),
-                          label: const Text('开始闪卡学习'),
+                      if (cards.isEmpty) ...[
+                        const Icon(Icons.celebration, size: 48, color: Colors.amber),
+                        const SizedBox(height: 8),
+                        const Text('今日任务已完成！🎉', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                        const SizedBox(height: 4),
+                        const Text('明天会有新的复习任务', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        const SizedBox(height: 16),
+                        OutlinedButton.icon(
+                          onPressed: () => _resetAndReload(ref, context),
+                          icon: const Icon(Icons.refresh, size: 18),
+                          label: const Text('换一批新词'),
                         ),
-                      ),
+                      ] else ...[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _StatBadge(label: '新学', value: '${cards.where((c) => c.status == 'new').length}', color: Colors.blue),
+                            _StatBadge(label: '复习', value: '${cards.where((c) => c.status != 'new').length}', color: Colors.orange),
+                            _StatBadge(label: '总计', value: '${cards.length}', color: Colors.green),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () => _startFlashcard(context, cards),
+                            icon: const Icon(Icons.play_arrow),
+                            label: const Text('开始闪卡学习'),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -95,6 +109,23 @@ class VocabScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  void _resetAndReload(WidgetRef ref, BuildContext context) async {
+    // 强制加载新一批词
+    try {
+      final api = ref.read(apiClientProvider);
+      final resp = await api.dio.get('/api/vocab/flashcards', queryParameters: {
+        'limit': 20,
+        'force_new': true,
+      });
+      final items = (resp.data['items'] as List)
+          .map((j) => FlashcardItem.fromJson(j))
+          .toList();
+      if (context.mounted && items.isNotEmpty) {
+        _startFlashcard(context, items);
+      }
+    } catch (_) {}
   }
 
   void _startFlashcard(BuildContext context, List<FlashcardItem> cards) {

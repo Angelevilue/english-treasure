@@ -55,7 +55,7 @@ class FlashcardItem(BaseModel):
 
 
 class FlashcardReviewRequest(BaseModel):
-    word_id: uuid.UUID
+    word_id: str
     quality: int = Field(ge=0, le=5, description="0=完全忘记, 5=完美记忆")
 
 

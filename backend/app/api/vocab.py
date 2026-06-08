@@ -110,6 +110,7 @@ async def list_words(
 async def get_flashcards(
     bank_id: str | None = Query(None),
     limit: int = Query(20, ge=1, le=50),
+    force_new: bool = Query(False, description="强制加载新词，忽略已有进度"),
     user: User = Depends(get_current_user_dep),
     db: AsyncSession = Depends(get_db),
 ):
@@ -192,6 +193,31 @@ async def get_flashcards(
                 )
             )
 
+    # 3. force_new: 当没有复习词时，返回新词（忽略已有进度）
+    if force_new and not items:
+        fresh_stmt = (
+            select(Word)
+            .order_by(func.random())
+            .limit(limit)
+        )
+        if bank_id:
+            fresh_stmt = fresh_stmt.where(Word.word_bank_id == bank_id)
+        fresh_result = await db.execute(fresh_stmt)
+        fresh_words = fresh_result.scalars().all()
+        for w in fresh_words:
+            items.append(
+                FlashcardItem(
+                    word_id=w.id,
+                    word=w.word,
+                    phonetic=w.phonetic,
+                    audio_url=w.audio_url,
+                    definition=w.definition,
+                    example_sentence=w.example_sentence,
+                    example_translation=w.example_translation,
+                    status=WordStatus.NEW,
+                )
+            )
+
     return FlashcardResponse(
         items=items,
         new_count=len(items) - len(review_progress),
@@ -244,7 +270,7 @@ async def review_flashcard(
         progress.incorrect_count += 1
 
     # 更新状态
-    if new_reps >= 5 and body.quality >= 4:
+    if new_reps >= 2 and body.quality >= 4:
         progress.status = WordStatus.MASTERED
     elif progress.status == WordStatus.NEW:
         progress.status = WordStatus.LEARNING

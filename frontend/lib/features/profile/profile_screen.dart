@@ -14,6 +14,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Map<String, dynamic>? _profile;
   bool _loading = true;
   String? _error;
+  bool _loadInProgress = false;
 
   @override
   void initState() {
@@ -21,9 +22,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _loadData();
   }
 
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
   Future<void> _loadData() async {
+    _loadInProgress = true;
+    final api = ref.read(apiClientProvider);
     try {
-      final api = ref.read(apiClientProvider);
       final results = await Future.wait([
         api.dio.get('/api/stats/overview'),
         api.dio.get('/api/auth/me'),
@@ -37,7 +44,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       }
     } catch (e) {
       if (mounted) setState(() { _loading = false; _error = '$e'; });
+    } finally {
+      _loadInProgress = false;
     }
+  }
+
+  void _reloadIfNeeded() {
+    if (!_loadInProgress) _loadData();
   }
 
   Future<void> _switchStage(String stage) async {
@@ -50,6 +63,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    _reloadIfNeeded();
+
     final auth = ref.watch(authProvider);
     final nickname = _profile?['nickname'] as String? ?? auth.nickname ?? '英语学习者';
     final stage = _stats?['study_stage'] as String? ?? 'college';
